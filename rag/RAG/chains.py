@@ -43,15 +43,7 @@ prompt = PromptTemplate(
     - User Profile: {user_data}
     - Savings Allocations: {allocations}
 
-    Each savings allocation includes:
-    - name: str  
-    - amount: float  
-    - currency: str = "inr"  
-    - percentage: float  
-    - risk: float (0–1 scale, higher means riskier)  
-    - illiquidity: float (0–1 scale, higher means more illiquid)  
-    - tax_efficiency: float (0–1 scale, higher means more tax-efficient)  
-    - yield_pct: float (expected annual yield in %)
+    
 
     Instructions:
     1. Understand the User's Intent: Carefully interpret what the user is asking about their investments.
