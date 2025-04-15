@@ -1,13 +1,13 @@
 import os
 os.environ['STREAMLIT_SERVER_ENABLE_STATIC_SERVING'] = 'false'
 
-from simple_rag import graph
+from RAG.rag import graph
 import streamlit as st
 import json
 from io import StringIO
 import tiktoken
 import time
-from langchain_community.document_loaders import PyMuPDFLoader
+
 # Token limits
 GPT_LIMIT = 128000
 GEMINI_LIMIT = 1000000
@@ -35,11 +35,7 @@ def calculate_context_window_usage(json_data=None):
     gemini_tokens = count_tokens_gemini(full_conversation)
     
     return gpt_tokens, gemini_tokens
-def load_pdf(path):
-    docs = PyMuPDFLoader(path)
-    return docs
 
-docs = load_pdf(path = '/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/r_IndiaInvestments.pdf')
 # Page configuration
 st.set_page_config(page_title="📊 RAG Chat Assistant", layout="wide")
 
@@ -155,14 +151,11 @@ if st.session_state.processing:
                 inputs = {
                     "query": last_user_message,
                     "user_data": user_data,
-                    "allocations": allocations,
-                    "pdf":docs,
-                    "memory": st.session_state.chat_history
+                    "allocations": allocations
                 }
 
                 response = graph.invoke(inputs)
-                response = response['result']
-                
+                response = response['generation']
 
                 # Count tokens for the response
                 response_gpt_tokens = count_tokens_gpt(response)

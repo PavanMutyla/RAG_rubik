@@ -320,7 +320,7 @@ def generate(state, rag_chain=rag_chain):
     investment_options = re.split(r'\n?\d+\.\s+', response.strip())
     investment_options = [opt for opt in investment_options if opt.strip()]
 
-    markdown_response = "**Here are some low-risk investment areas you might consider:**\n\n"
+    markdown_response = ""
 
     for i, option in enumerate(investment_options, start=1):
         match = re.match(r'\*\*(.*?)\*\*[:-]?\s*(.*)', option, re.DOTALL)
