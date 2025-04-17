@@ -3,6 +3,8 @@ from langchain_openai import OpenAIEmbeddings
 from RAG.chains import simple_chain
 from langchain_core.messages import BaseMessage
 from typing import TypedDict, Optional, Dict, List, Union
+
+from RAG.tools import json_to_table, goal_feasibility
 import re
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,6 +30,7 @@ def generate(state):
     docs = state['pdf']
     memory = state['memory']
 
+    print("Invoking simple_chain...")  # Debugging line
     response = simple_chain.invoke({
         'user_data':user_data,
         'query':query,
@@ -35,9 +38,7 @@ def generate(state):
         'data':docs,
         'chat_history':memory
     })
-    #response = re.sub(
-     ####flags=re.DOTALL
-    #)
+    print(f"simple_chain response: {response}")  # Debugging line
 
     return {
         'query':query,
@@ -49,4 +50,14 @@ workflow.add_node('generate', generate)
 workflow.add_edge(START, 'generate')
 workflow.add_edge('generate', END)
 
+
 graph = workflow.compile()
+
+inputs = {
+                    "query": "I want to buy a car of 12L within a year",
+                    "user_data": None,
+                    "allocations": None,
+                    "pdf":None,
+                    "memory": [""]
+                }
+#print(graph.invoke(inputs))

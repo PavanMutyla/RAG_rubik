@@ -5,6 +5,11 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os
+from RAG.tools import json_to_table, goal_feasibility
+from langchain.agents import initialize_agent, Tool
+from langchain.agents import AgentType
+from langgraph.prebuilt import create_react_agent
+from langchain.tools import Tool
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -133,6 +138,9 @@ name: str
     assets: List[AssetAllocation]
 """
 
+tools = [ json_to_table, goal_feasibility
+]
+
 
 
 template = """
@@ -142,64 +150,75 @@ template = """
     - Query: {query}
     - User Profile: {user_data}
     - Savings Allocations: {allocations}
+    - Additional Data: {data}
 
-    Instructions:
-    1. Understand the User's Intent: Carefully interpret what the user is asking about their investments.
-    2. Analyze Allocations: Evaluate the savings allocation data to understand the user's current financial posture.
-    3. Personalized Response:
-    - If detailed user profile and allocation data are available, prioritize your response based on this data.
-    - If profile or allocation data is sparse, rely more heavily on the query context.
-   
-    4.  Refer the {data} aswell to answer the queries.
-    5. Response should be within the context {user_data}, {allocations} and {data}.
-    6. Updated the information as the user chats.
-   
-    Response structure:
+        ------------------------
+        🧠 GENERAL INSTRUCTIONS:
+        ------------------------
+        1. Understand the user's intent — identify whether they need advice, review, calculations, visualization, or planning.
+        2. Analyze `user_data` and `allocations` to provide **personalized** and **context-aware** responses.
+        3. Refer to the `data` document only if necessary for factual support.
+        4. Update your understanding as the conversation progresses — later messages may override previous ones.
+        5. If the query needs a calculation or a table, **generate the inputs needed for the correct tool.**
 
-    -📝 Keep it short , Max 300 words
+        -------------------------------
+        ⚙️ AVAILABLE TOOLS AND FORMATS:
+        -------------------------------
 
-    -😊 Use a friendly tone , Be warm and helpful
+        1. `goal_feasibility`
+        If the user gives new goals other than the ones in {user_data}, perform feasibility for that goal.
+        The tool takes the following inputs-
+        - Inputs:
+        - goal_amount: float (₹)
+        - timeline: float (months)
+        - current_savings: float (₹)
+        - income: float (₹)
 
-    -📚 Stay structured , Use bullet points or headers
+        2. `json_to_table`
+        - Use this tool to display {allocations}
+        Use this if there is a need to update or display or **visualize or tabulate** the allocations, then use this tool.
+        - Input: JSON object or list
 
-    -👀 Make it visually clear , Use spacing and formatting
+        If any tool is used, return in this format:
+        ```json
+        "tool_calls": [
+        {{
+            "tool_name": "<tool_name>",
+            "inputs": {{
+            "key": value
+            }}
+        }}
+        ]
+        If no tools are needed:
+            "tool_calls": []
+        📝 RESPONSE FORMAT:
+            Your actual answer should follow this structure:
 
-    -🎯 Be direct, Keep sentences simple and to the point
+                🎯 Overview (10%) — Generalized comment on the query
 
-    -🌟 Add emojis - They guide and add personality.
+                🧾 Personalized Insights (45%) — Use user_data and allocations to tailor your response
 
-    - Alaways present again the final allocation in table if there are any new changes.
-    The table should have: Asset Class | Type | Label	|Amount (₹)	|Change (₹)	| New Amount (₹) |Justification
-    
-    - First 10% should be generalized response for the query.
-    - Next 45% should be personalized based on the {user_data} and {allocations}
-    - Next 15-% should be Honest review about the goals. Your responses are logical, data-driven, and forward-looking. When you see an irrational goal, you say it clearly and back it with numbers. If the goals is not irrational provide useful tips based on the situation
-    - Last 20% should be summary of the entire response.
-    - Cite the information you are taking from the {data}, in the response at the end add citations and there specify the page number of {data} you are referencing to generate response. If there are not any citations, just say did not refer the document.
-    - The references structure should be:
-      
+                🧐 Goal Evaluation (15%) — Honest take: is the goal logical or not? Use numbers, be blunt but respectful.
 
-
-  "references": [
-    {{
-      "title": "<Title of the document>",
-      "summary": "<Brief explanation of the referenced section>",
-      "cited_text": "<Quoted or paraphrased text>",
-      "context": "<How the citation was used in the response>"
-    }}
-    // Add more reference objects if multiple citations are used
-    // If no citation was used, return an empty array []
-  ]
+                🧠 Summary (20%) — Summarize key takeaways and next steps
+        🔖 REFERENCES (if used):
+            If you used the data document, include:
+            "references": [
+                            {{
+                                "title": "<Title of the document>",
+                                "summary": "<Brief explanation of the section used>",
+                                "cited_text": "<Quoted or paraphrased text>",
+                                "context": "<How it was used in your response>"
+                            }}
+                            ]
 
 
 
-    
 """
-
-
+llm = llm.bind_tools(tools =tools)
 simple_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(template=template),
-    MessagesPlaceholder(variable_name="chat_history"),  # 👈 adds full past memory
+    MessagesPlaceholder(variable_name="chat_history"),  
     HumanMessagePromptTemplate.from_template("User: {query}, {user_data}, {allocations}, {data}")
 ])
-simple_chain = simple_prompt | gemini | StrOutputParser()
+simple_chain = simple_prompt | llm | StrOutputParser()
