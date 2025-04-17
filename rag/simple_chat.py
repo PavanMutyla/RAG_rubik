@@ -5,8 +5,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 from dotenv import load_dotenv
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.prebuilt import ToolNode
-from RAG.tools import json_to_table, goal_feasibility
-from RAG.chains import simple_prompt
+from rag.RAG.tools import json_to_table, goal_feasibility
+from rag.RAG.chains import simple_prompt
 import os
 llm = ChatOpenAI(
     model='gpt-4.1-nano',

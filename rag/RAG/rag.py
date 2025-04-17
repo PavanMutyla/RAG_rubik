@@ -20,10 +20,10 @@ from typing import List, TypedDict, Optional, Annotated, Sequence
 from langchain.schema import Document
 from langgraph.graph import START, END, StateGraph
 from dotenv import load_dotenv
-from RAG.entities import KBCategory, THRESHOLD
-from RAG.mappings import CATEGORY_DB_MAPPING
-from RAG.chains import retrieval_grader, query_classifier, question_rewriter, rag_chain
-from RAG.kb import tax_retriever, fin_prods_retriever, general_retriever, regulations_retriever
+from rag.RAG.entities import KBCategory, THRESHOLD
+from rag.RAG.mappings import CATEGORY_DB_MAPPING
+from rag.RAG.chains import retrieval_grader, query_classifier, question_rewriter, rag_chain
+from rag.RAG.kb import tax_retriever, fin_prods_retriever, general_retriever, regulations_retriever
 from langchain_openai import OpenAIEmbeddings
 import json
 

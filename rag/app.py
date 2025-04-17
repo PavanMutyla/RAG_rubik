@@ -10,6 +10,8 @@ import time
 from langchain_community.document_loaders import PyMuPDFLoader
 import traceback
 import sqlite3  # Import SQLite
+from dotenv import load_dotenv
+load_dotenv()
 
 # Token limits
 GPT_LIMIT = 128000
@@ -38,11 +40,18 @@ def calculate_context_window_usage(json_data=None):
     gemini_tokens = count_tokens_gemini(full_conversation)
     
     return gpt_tokens, gemini_tokens
-def load_pdf(path):
-    docs = PyMuPDFLoader(path)
-    return docs
 
-docs = load_pdf(path = '/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/r_IndiaInvestments.pdf')
+
+def load_pdf(path):
+    try:
+        docs = PyMuPDFLoader(path)
+        return docs
+    except Exception as e:
+        raise RuntimeError(f"Error loading PDF: {e}")
+pdf_filename = os.getenv('PDF_PATH')
+pdf_path = os.path.join('../sample_data', pdf_filename)
+docs = load_pdf(path = pdf_path)
+
 # Page configuration
 st.set_page_config(page_title="📊 RAG Chat Assistant", layout="wide")
 

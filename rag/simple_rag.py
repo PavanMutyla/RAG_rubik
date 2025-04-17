@@ -30,7 +30,7 @@ def generate(state):
     docs = state['pdf']
     memory = state['memory']
 
-    print("Invoking simple_chain...")  # Debugging line
+     # Debugging line
     response = simple_chain.invoke({
         'user_data':user_data,
         'query':query,
@@ -38,7 +38,7 @@ def generate(state):
         'data':docs,
         'chat_history':memory
     })
-    print(f"simple_chain response: {response}")  # Debugging line
+ 
 
     return {
         'query':query,
