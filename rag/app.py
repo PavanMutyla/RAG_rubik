@@ -8,6 +8,9 @@ from io import StringIO
 import tiktoken
 import time
 from langchain_community.document_loaders import PyMuPDFLoader
+import traceback
+import sqlite3  # Import SQLite
+
 # Token limits
 GPT_LIMIT = 128000
 GEMINI_LIMIT = 1000000
@@ -59,6 +62,47 @@ if "window_gpt_tokens" not in st.session_state:
 if "window_gemini_tokens" not in st.session_state:
     st.session_state.window_gemini_tokens = 0  # Current context window
 
+# --- Database setup ---
+DATABASE_PATH = "Data/chat_history.db"
+
+def initialize_database():
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender TEXT,
+            message TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def load_chat_history():
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT sender, message FROM chat_history ORDER BY timestamp")
+    history = cursor.fetchall()
+    conn.close()
+    return history
+
+def save_message(sender, message):
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO chat_history (sender, message) VALUES (?, ?)", (sender, message))
+    conn.commit()
+    conn.close()
+
+# Initialize database
+initialize_database()
+
+# Load chat history from the database when the app starts
+if "chat_history" not in st.session_state or not st.session_state.chat_history:
+    st.session_state.chat_history = load_chat_history()
+    if not st.session_state.chat_history:
+        st.session_state.chat_history = [("assistant", "👋 Hello! I'm your RAG assistant. Please upload your JSON files and ask me a question about your portfolio.")]
+
 # --- Layout: Chat UI Left | Progress Bars Right ---
 col_chat, col_progress = st.columns([3, 1])
 
@@ -79,6 +123,14 @@ with col_chat:
             st.session_state.total_gemini_tokens = 0
             st.session_state.window_gpt_tokens = 0
             st.session_state.window_gemini_tokens = 0
+            
+            # Clear the chat history in the database
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM chat_history")
+            conn.commit()
+            conn.close()
+            
             st.rerun()
 
     st.markdown("---")
@@ -110,6 +162,7 @@ with col_chat:
         
         # Add user message to history immediately
         st.session_state.chat_history.append(("user", user_input))
+        save_message("user", user_input)  # Save user message to DB
         
         # Force a rerun to show the message and thinking indicator
         st.rerun()
@@ -160,8 +213,9 @@ if st.session_state.processing:
                     "memory": st.session_state.chat_history
                 }
 
-                response = graph.invoke(inputs)
-                response = response['result']
+                
+
+                response = graph.invoke(inputs)['result']
                 
 
                 # Count tokens for the response
@@ -174,6 +228,7 @@ if st.session_state.processing:
 
                 # Add to chat history
                 st.session_state.chat_history.append(("assistant", response))
+                save_message("assistant", response)  # Save assistant message to DB
                 
                 # Update context window calculations after adding response
                 window_gpt, window_gemini = calculate_context_window_usage(combined_json_data)
@@ -181,7 +236,10 @@ if st.session_state.processing:
                 st.session_state.window_gemini_tokens = window_gemini
                 
         except Exception as e:
-            st.session_state.chat_history.append(("assistant", f"❌ Error: {str(e)}"))
+            tb = traceback.extract_stack()
+            filename, line_number, function_name, text = tb[-2]
+            error_message = f"❌ Error: {str(e)} in {filename} at line {line_number}, function: {function_name}"
+            st.session_state.chat_history.append(("assistant", error_message))
         
         # Reset processing flag
         st.session_state.processing = False
