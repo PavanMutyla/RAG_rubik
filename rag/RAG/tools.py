@@ -1,6 +1,11 @@
 from langchain.tools import tool
 import pandas as pd 
 import json 
+import re
+import os
+from copy import deepcopy
+from dotenv import load_dotenv
+load_dotenv()
 
 @tool
 def json_to_table(json_data):
@@ -58,4 +63,74 @@ def goal_feasibility(goal_amount: float, timeline: float, current_savings: float
         "status": status,
         "monthly_required": round(monthly_required, 2),
         "reason": reason
+    }
+
+
+
+@tool
+def update_user_state(chat_history: list, user_data: dict = None, allocations: dict = None) -> dict:
+    """
+    Update user_data and allocations based on chat history.
+    Saves updated JSONs to a folder named 'updated_json' inside the path set by env var 'Data'.
+    """
+    user_data = deepcopy(user_data or {
+        "sematic": {"financial": {}, "demographic": {}},
+        "episodic": {"goals": [], "prefrences": []}
+    })
+
+    allocations = deepcopy(allocations or {})
+
+    for msg in chat_history:
+        if isinstance(msg, dict) and "content" in msg:
+            content = msg["content"].lower()
+
+            # Salary update
+            if match := re.search(r"(salary|income) (is|to be)? ?₹?([\d,]+)", content):
+                user_data["sematic"]["financial"]["salary"] = int(match.group(3).replace(",", ""))
+
+            # Expenses update
+            if match := re.search(r"(monthly expenses|spend) (is|are)? ?₹?([\d,]+)", content):
+                user_data["sematic"]["financial"]["monthly_expenses"] = int(match.group(3).replace(",", ""))
+
+            # New goal
+            if match := re.search(r"(save | buy) ₹?([\d,]+) for (.*?) in (\d+) (months|years|year)", content):
+                amount = int(match.group(1).replace(",", ""))
+                label = match.group(2).strip().title()
+                timeline = int(match.group(3))
+                if "year" in match.group(4):
+                    timeline *= 12
+                goal = {
+                    "priority": "medium",
+                    "target": amount,
+                    "tenuer": f"{timeline} months",
+                    "label": label
+                }
+                if goal not in user_data["episodic"]["goals"]:
+                    user_data["episodic"]["goals"].append(goal)
+
+            # Add MF
+            if "add mutual fund" in content:
+                mf = {
+                    "type": "mutual_fund",
+                    "amount": 50000,
+                    "category": "index_fund",
+                    "label": "User Added MF",
+                    "portfolio": []
+                }
+                allocations.setdefault("equity", []).append(mf)
+
+    # Save to folder
+    base_path = os.getenv("Data", ".")
+    save_path = os.path.join(base_path, "updated_json")
+    os.makedirs(save_path, exist_ok=True)
+
+    with open(os.path.join(save_path, "updated_user_data.json"), "w") as f:
+        json.dump(user_data, f, indent=2)
+
+    with open(os.path.join(save_path, "updated_allocations.json"), "w") as f:
+        json.dump(allocations, f, indent=2)
+
+    return {
+        "user_data": user_data,
+        "allocations": allocations
     }

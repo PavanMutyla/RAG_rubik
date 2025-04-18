@@ -1,0 +1,10 @@
+{
+  "sematic": {
+    "financial": {},
+    "demographic": {}
+  },
+  "episodic": {
+    "goals": [],
+    "prefrences": []
+  }
+}
