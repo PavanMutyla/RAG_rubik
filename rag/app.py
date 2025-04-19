@@ -348,7 +348,7 @@ def load_pdf(path):
     except Exception as e:
         raise RuntimeError(f"Error loading PDF: {e}")
 pdf_filename = os.getenv('PDF_PATH')
-pdf_path = os.path.join('../sample_data', pdf_filename)
+pdf_path = os.path.join('sample_data', pdf_filename)
 docs = load_pdf(path = pdf_path)
 
 # Page configuration
