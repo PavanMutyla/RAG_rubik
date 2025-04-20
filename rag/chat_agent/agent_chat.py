@@ -1,45 +1,34 @@
-from rag.RAG.tools import json_to_table, goal_feasibility, update_user_state
-from rag.RAG.chains import template, simple_prompt
+from rag.RAG.tools import json_to_table, goal_feasibility
+from rag.RAG.chains import template, simple_prompt, simple_chain
 from langchain.tools import tool 
 from langchain_openai import ChatOpenAI
-from langchain.agents import initialize_agent
+from langchain.agents import initialize_agent, Tool, create_react_agent, AgentType
+from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 from langchain.agents import AgentExecutor, create_openai_functions_agent, create_tool_calling_agent
 import os 
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.chains.conversation.memory import ConversationBufferWindowMemory
+from langchain_core.chat_history import BaseChatMessageHistory
 from dotenv import load_dotenv
 load_dotenv()
 
-tools = [json_to_table, goal_feasibility, update_user_state]
+tools = [json_to_table]
 
 llm = llm = ChatOpenAI(
     model='gpt-4.1-nano',
     api_key=os.environ.get('OPEN_AI_KEY'),
-    temperature=0.2
+    temperature=0.2,
 )
 
+memory = ChatMessageHistory(session_id="test-session")
 
+agent = initialize_agent(llm = llm,tools = tools, prompt=simple_prompt)
 
-agent = create_tool_calling_agent(llm, tools, simple_prompt)
-inputs = {
-    "query": "I want to buy a car of 12L within a year",
-    "user_data": None,  # or some mock data like {"income": 60000, ...}
-    "allocations": None,  # or {"FD": 300000, "Mutual Funds": 200000}
-    "data": None,  # if no PDF or other external data, keep it None
-    "chat_history": [],  # start with empty history if fresh
-    "agent_scratchpad": ""  # always include this
-}
+agent_executor = AgentExecutor(agent=agent, tools=tools)
 
-
-# Create an agent executor by passing in the agent and tools
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-"""
-print(agent_executor.invoke({
-    "query": "I want to buy a car of 12L within a year",
-    "user_data": None,  # or some mock data like {"income": 60000, ...}
-    "allocations": None,  # or {"FD": 300000, "Mutual Funds": 200000}
-    "data": None,  # if no PDF or other external data, keep it None
-    "chat_history": [],  # start with empty history if fresh
-    "agent_scratchpad": ""  # always include this
-}))
-"""
-#print(agent_executor.invoke(inputs))
+agent_with_chat_history = RunnableWithMessageHistory(
+    agent_executor,
+    lambda session_id: memory,  # Associates memory with session_id
+    input_messages_key="query",
+    history_messages_key="chat_history",
+)
