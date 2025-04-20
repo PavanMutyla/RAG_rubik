@@ -58,6 +58,7 @@ graph.add_node("chat", chat)
 graph.add_node("tools", ToolNode(tools))
 graph.add_edge(START, "chat")
 graph.add_conditional_edges("chat", tools_condition)
+graph.add_edge("tools", "chat")
 graph.add_edge("chat", END)
 
 app = graph.compile(checkpointer=memory)
@@ -75,4 +76,4 @@ inputs = {
 }
 
 
-print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))
+#print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))

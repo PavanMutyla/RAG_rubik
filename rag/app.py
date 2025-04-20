@@ -270,7 +270,7 @@ if st.session_state.processing:
 
                 
                 
-                response = app.invoke(inputs, config={"configurable": {"thread_id": "sample"}})
+                response = app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}).get('output')
                 print(response)
                 
 
