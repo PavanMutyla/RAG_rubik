@@ -13,6 +13,7 @@ llm = ChatOpenAI(
     api_key=os.environ.get('OPEN_AI_KEY'),
     temperature=0.2
 )
+'''
 class BasicChatBot(TypedDict):
     messages: Annotated[list, add_messages]
 tools = [json_to_table, goal_feasibility]
@@ -51,3 +52,4 @@ graph.add_conditional_edges("chatbot", tools_router)
 graph.add_edge("tool_node", "chatbot")
 
 app = graph.compile()
+'''

@@ -5,10 +5,10 @@ from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMe
 from typing import TypedDict, Optional, Dict, List, Union, Annotated
 from langchain_core.messages import AnyMessage #human or AI message
 from langgraph.graph.message import add_messages # reducer in langgraph 
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import ToolNode, tools_condition
 from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
-
+from langgraph.checkpoint.memory import MemorySaver
 import json
 from RAG.tools import json_to_table, goal_feasibility
 import re
@@ -16,150 +16,64 @@ import re
 from dotenv import load_dotenv
 load_dotenv()
 
+memory = MemorySaver()
+config = {"thread_id":"sample"}
 tools = [json_to_table, goal_feasibility]
 #tool_executor = ToolExecutor([json_to_table, goal_feasibility])
 
-class GraphState(TypedDict):
-    query: str
-    user_data: dict
-    allocations: dict
-    data: dict
-    chat_history: list
-    messages: list
-def custom_agent_node(state: GraphState) -> GraphState:
-    chain_input = {
-        "query": state["query"],
-        "user_data": state["user_data"],
-        "allocations": state["allocations"],
-        "data": state["data"],
-        "chat_history": state["chat_history"],
-    }
-    result = simple_chain.invoke(chain_input)
-    return {
-        **state,
-        "messages": state["messages"] + [AIMessage(content=result.content)],
-    }
-# ⚙️ Tool execution node
-def tool_node(state: GraphState) -> GraphState:
-    last_message = state["messages"][-1]
-    tool_calls = getattr(last_message, "tool_calls", [])
-
-    tool_outputs = []
-    for call in tool_calls:
-        tool_outputs.append(tool_executor.invoke(call))
-
-    tool_messages = [ToolMessage(content=str(out), tool_call_id=call.id)
-                     for call, out in zip(tool_calls, tool_outputs)]
-
-    return {
-        **state,
-        "messages": state["messages"] + tool_messages,
-    }
-
-# ➕ Update memory with latest user additions (goals etc.)
-def update_state(state: GraphState) -> GraphState:
-    # Example logic to store new goal from message
-    for msg in state["messages"]:
-        if "goal" in msg.content.lower():
-            state["user_data"]["goals"].append(msg.content)  # custom memory update
-    return state
-
-# 🧠 LangGraph setup
-graph = StateGraph(GraphState)
-
-graph.add_node("agent", custom_agent_node)
-graph.add_node("tools", tool_node)
-graph.add_node("update_memory", update_state)
-
-graph.set_entry_point("agent")
-graph.add_edge("agent", "tools")
-graph.add_edge("tools", "update_memory")
-graph.add_edge("update_memory", END)
-
-app = graph.compile()
-'''
-
 class Graph(TypedDict):
-    user_data: Optional[Dict]
-    allocations: Optional[Dict]
-    pdf: Optional[Union[str, bytes]]
-    memory: List[BaseMessage]
-    messages: List[BaseMessage]
+    query: Annotated[list[AnyMessage], add_messages]
+    user_data : Dict
+    allocations : Dict 
+    data : str 
+    output : Dict
+def tools_condition(state):
+    last_message = state["query"][-1]
+    if isinstance(last_message, AIMessage) and getattr(last_message, "tool_calls", None):
+        return "tools"
+    return END
 
-def tool_call_llm(state):
-    user_data = state['user_data']
-    allocations = state['allocations']
-    docs = state['pdf']
-    memory = state['memory']
-    messages = state['messages']
-
-    # Extract latest HumanMessage as the actual query
-    query_content = [msg.content for msg in messages if isinstance(msg, HumanMessage)][-1]
-
+def chat(state):
     inputs = {
-        'user_data': user_data,
-        'query': query_content,
-        'allocations': allocations,
-        'data': docs,
-        'chat_history': memory
+        "query": state['query'],
+        "user_data": state['user_data'],
+        "allocations": state['allocations'],
+        "data": state['data']
     }
+    result = simple_chain.invoke(inputs)
 
-    response = simple_chain.invoke(inputs)
+    new_query = state["query"] + [AIMessage(content=result.content)]
 
     return {
-        # Required for the next prompt
-        "query": query_content,
-        "user_data": user_data,
-        "allocations": allocations,
-        "data": docs,
-        "chat_history": memory,
-
-        # Update memory/messages as state
-        "messages": messages + [response],
-        "memory": memory + [response]
+        "query": new_query,
+        "user_data": state['user_data'],
+        "allocations": state['allocations'],
+        "data": state['data'],
+        "output": result.content
     }
 
-def tools_condition(state):
-    latest_msg = state["messages"][-1]
 
-    try:
-        parsed = json.loads(latest_msg.content)
-        return "tools" if parsed.get("tool_calls") else "tool_calling_llm"
-    except Exception:
-        return "tool_calling_llm"
+graph = StateGraph(Graph)
+graph.add_node("chat", chat)
+graph.add_node("tools", ToolNode(tools))
+graph.add_edge(START, "chat")
+graph.add_conditional_edges("chat", tools_condition)
+graph.add_edge("tools", "chat")
+graph.add_edge("chat", END)
 
-
-workflow = StateGraph(Graph)
-from langchain_core.runnables import RunnableLambda
-
-workflow.add_node(
-    "tool_calling_llm",
-    RunnableLambda(tool_call_llm).with_config({
-        "input_keys": ["query", "user_data", "allocations", "data", "chat_history", "messages", "memory"]
-    })
-)
-
-workflow.add_node("tools", ToolNode(tools))
-
-workflow.add_edge(START, 'tool_calling_llm')
-
-workflow.add_conditional_edges(
-    "tool_calling_llm", 
-    tools_condition
-)
-
-workflow.add_edge('tools', 'tool_calling_llm')
-
-graph = workflow.compile()
+app = graph.compile(checkpointer=memory)
 
 
+with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
+    data = json.load(f)
+with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
+    allocs = json.load(f)
 inputs = {
-                    "query": "I want to buy a car of 12L within a year",
-                    "user_data": None,
-                    "allocations": None,
-                    "pdf":None,
-                    "memory": [""],
+    "query":"I got a hike of 10k, help me reallocate my investments.",
+    "user_data":data,
+    "allocations":allocs,
+    "data":"",
+}
 
-                }
-print(agent.invoke(inputs))
-'''
+
+#print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))
