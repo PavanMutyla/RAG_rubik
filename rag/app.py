@@ -1,8 +1,8 @@
 import pandas as pd
 import os
+import langchain
 os.environ['STREAMLIT_SERVER_ENABLE_STATIC_SERVING'] = 'false'
 
-from chat_agent.agent_chat import agent_with_chat_history
 from rag.simple_rag import app
 
 import streamlit as st
@@ -19,9 +19,10 @@ load_dotenv()
 import uuid  # Import the UUID library
 
 # Token limits
+config={"configurable": {"thread_id": "sample"}}
 GPT_LIMIT = 128000
 GEMINI_LIMIT = 1000000
-
+config={"configurable": {"thread_id": "sample"}}
 # Token counters
 def count_tokens_gpt(text):
     enc = tiktoken.encoding_for_model("gpt-4")
@@ -143,6 +144,40 @@ with col_chat:
     with st.expander("📂 Upload Required JSON Files", expanded=True):
         user_data_file = st.file_uploader("Upload user_data.json", type="json", key="user_data")
         allocations_file = st.file_uploader("Upload allocations.json", type="json", key="allocations")
+        if user_data_file:
+            user_data = json.load(user_data_file)
+            sematic = user_data.get("sematic", {})
+            demographic = sematic.get("demographic", {})
+            financial = sematic.get("financial", {})
+            episodic = user_data.get("episodic", {}).get("prefrences", [])
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("### 🧾 **Demographic Info**")
+                st.markdown(f"""
+                - **Age**: {demographic.get("age")}
+                - **Employment Type**: {demographic.get("employment_type").capitalize()}
+                - **Dependents**: {demographic.get("dependents")}
+                - **Health Status**: {demographic.get("health_status").capitalize()}
+                - **Location**: {demographic.get("location").replace("_", " ").title()}
+                """)
+
+            with col2:
+                st.markdown("### 📊 **Financial Status**")
+                st.markdown(f"""
+                - **Salary**: ₹{financial.get("salary"):,}/month
+                - **Savings & Investments**: ₹{financial.get("current_savings_and_investments"):,}
+                - **Debts**: ₹{financial.get("debts"):,}
+                - **Monthly Expenses**: ₹{financial.get("monthly_expenses"):,}
+                - **Housing Loan**: {"Yes" if financial.get("is_housing_loan") else "No"}
+                """)
+
+            with col3:
+                st.markdown("### ⚙️ **Preferences**")
+                st.markdown("**User Preferences:**")
+                for pref in episodic:
+                    st.markdown(f"- {pref.capitalize()}")
 
 
        
@@ -263,14 +298,14 @@ if st.session_state.processing:
                     "query": last_user_message,
                     "user_data": user_data,
                     "allocations": allocations,
-                    "data":"",
+                    #"data":"",
                     "chat_history": st.session_state.chat_history
                 }
                 print(st.session_state.chat_history)
 
                 
                 
-                response = app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}).get('output')
+                response = app.invoke(inputs, config = config).get('output')
                 print(response)
                 
 
