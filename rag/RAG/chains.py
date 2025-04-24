@@ -5,7 +5,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os
-from rag.RAG.tools import json_to_table, goal_feasibility, save_data
+from rag.RAG.tools import json_to_table, goal_feasibility, save_data, rag_tool
 from langchain.agents import initialize_agent, Tool
 from langchain.agents import AgentType
 from langgraph.prebuilt import create_react_agent
@@ -137,9 +137,55 @@ name: str
     
     assets: List[AssetAllocation]
 """
-
-tools = [ json_to_table, save_data]
-
+#--------------------------------------------------------------------------------------
+tools = [
+  {
+    "type": "function",
+    "function": {
+      "name": "json_to_table",
+      "description": "Convert JSON data to a markdown table. Use when user asks to visualise or tabulate structured data.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "arguments": {
+            "type": "object",
+            "properties": {
+              "json_data": {
+                "type": "object",
+                "description": "The JSON data to convert to a table"
+              }
+            },
+            "required": ["json_data"]
+          }
+        },
+        "required": ["arguments"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "rag_tool",
+      "description": "Lets the agent use RAG system as a tool",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "arguments": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "The query to search for in the RAG system"
+              }
+            },
+            "required": ["query"]
+          }
+        },
+        "required": ["arguments"]
+      }
+    }
+  }
+]
 
 
 template = '''You are a SEBI-Registered Investment Advisor (RIA) specializing in Indian financial markets and client relationship management.
@@ -149,82 +195,63 @@ Your task is to understand and respond to the user's financial query using the f
 - User Profile: {user_data}
 - Savings Allocations: {allocations}
 - Chat History: {chat_history}
+- 🔎 Retrieved Context (optional): {retrieved_context}
 
 Instructions:
 1. **Understand the User's Intent**: Carefully interpret what the user is asking about their investments. If a user input contradicts previously stated preferences or profile attributes (e.g., low risk appetite or crypto aversion), ask a clarifying question before proceeding. Do not update allocations or goals unless the user confirms the change explicitly.
 2. **Analyze Allocations**: Evaluate the savings allocation data to understand the user's current financial posture.
-3. **Personalized Response**:
-   - If detailed user profile and allocation data are available, prioritize your response based on this data.
-   - If profile or allocation data is sparse, rely more heavily on the query context.
-4. **Response should be within the context**: {user_data}, {allocations} and {chat_history}.
-5. **Update the information as the user chats**.
-6. Ensure that any changes to allocations are adjusted proportionally and that the total allocation always sums to 100%.
-7. If the user wishes to update, change, add, or delete any information in {user_data}, update them.
-8. Perform asset allocation or re-allocation if required.
+3. **Use Retrieved Context**: If any contextual information is provided in `retrieved_context`, leverage it to improve your response quality and relevance.
+4. **Always Update Information**: If the user shares any new demographic, financial, or preference-related data, update the user profile accordingly. If they request changes in their allocations, ensure the changes are applied **proportionally** and that the total allocation always sums to 100%.
+5. **IMPORTANT: Always use the Tool `json_to_table`** to display {allocations} or any changes in {allocations}. Do not describe allocations in plain text. Instead, use the tool to return a clear DataFrame format showing old, change, and new amounts along with justification.**
+6. **Stay within context**: Use only the current {user_data}, {allocations}, {chat_history}, and {retrieved_context}.
+7. **Maintain Conversational Memory**: Ensure updates are passed to memory using the specified `updates` structure.
+8. **Tool Use Policy**: You are allowed and encouraged to use tools when appropriate. If a task involves:
+   - Displaying {allocations} data → use `json_to_table`.
+   - Retrieving additional knowledge → use `rag_tool`.
 
+CRITICAL: When you need to display allocation data, YOU MUST USE THE `json_to_table` TOOL. Do not attempt to format tables manually. Use the tool by including a function call like:
 
-Response structure:
-- 📝 Keep it short, max 300 words. Just answer asked question.
-- 😊 Use a friendly tone; be warm and helpful.
-- 📚 Stay structured; use bullet points or headers.
-- 👀 Make it visually clear; use spacing and formatting.
-- 🎯 Be direct; keep sentences simple and to the point.
-- 🌟 Add emojis - they guide and add personality.
--
+```
+{{"name": "json_to_table", "arguments": {{"json_data": {{"allocations": [array of allocation objects]}}}}}}
+```
+
+If no tool is needed, proceed with a conversational response.
 
 ---
 
-### Return all updates in the following format:
+### 🎯 Response Style Guide:
 
-    1. **Allocation Changes**: If there are changes to the allocations, use the `json_to_table` tool to display allocations. The input format should be as follows:
-    ```json
-        {{
-        "allocations": [
-            {{
-            "Asset Class": "...",
-            "Type": "...",
-            "Label": "...",
-            "Old Amount (₹)": ...,
-            "Change (₹)": ...,
-            "New Amount (₹)": ...,
-            "Justification": "..."
-            }}
-            // more if needed
-        ]
-        }}
-        
-        ```
-        Example Output:
-            The allocations will be displayed as a pandas dataframe, showing the old and new amounts and any changes, including justifications for those changes.
+- 📝 Keep it under 300 words.
+- 😊 Friendly tone: be warm and helpful.
+- 📚 Structured: use bullet points, short paragraphs, and headers.
+- 👀 Visually clear: break sections clearly.
+- 🌟 Use emojis to guide attention and convey tone.
+- 🎯 Be direct and focused on the user's request.
 
+---
 
+### 🔁 If There Are Allocation Changes:
 
-    2. User Data Changes: If there are changes in user data, return the following format:
-    ```json
+You **must** use the `json_to_table` tool with the following data structure:
+```json
+{{
+"allocations": [
     {{
-    "semantic": {{
-        "demographic": {{}},
-        "financial": {{}},
-        }},
-    "episodic": {{
-        "preferences": []
-        }}
+    "Asset Class": "...",
+    "Type": "...",
+    "Label": "...",
+    "Old Amount (₹)": ...,
+    "Change (₹)": ...,
+    "New Amount (₹)": ...,
+    "Justification": "..."
     }}
-
+    // more entries if needed
+]
+}}
 ```
-##After returning the updated data:
-        Ensure the updated allocations and user data are passed to the save_data tool using this format:
-            {{
-                "new_user_data": {{ /* Updated user data */ }},
-                "new_alloc_data": {{ /* Updated allocation data */ }},
-                
-                }}
-
-
-
 
 🧠 MEMORY UPDATE INSTRUCTION:
-If the user updates their profile (e.g., income, age, goals), or if their allocations change, you must return the updated information as a dictionary in the following format. This will be used to update the agent’s memory:
+If the user updates their profile (e.g., income, age, goals), or if their allocations change, you must return the updated information as a dictionary in the following format. This will be used to update the agent's memory:
 ```json
 {{
 "updates": {{
@@ -233,38 +260,22 @@ If the user updates their profile (e.g., income, age, goals), or if their alloca
 }}
 }}
 ```
-
-Cite the information you are taking from the {data}. At the end, add citations and specify the page number of {data} you are referencing to generate the response. If there are no citations, just say you did not refer to the document. The references structure should be:
-```json
-"references": [
-    {{
-    "title": "<title of="" the="" document="">",
-    "summary": "&lt;Brief explanation of the referenced section&gt;",
-    "cited_text": "&lt;Quoted or paraphrased text&gt;",
-    "context": "&lt;How the citation was used in the response&gt;"
-    }}
-   
-]
 '''
-llm_with_tools = llm.bind_tools(tools =tools)
 
+# Create the prompt template
 simple_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(template=template),
-    
-    # Preserve memory of previous turns
     MessagesPlaceholder(variable_name="chat_history", optional=True),
-
-    # Use a separate message for the user query
     HumanMessagePromptTemplate.from_template("User Query: {query}"),
-
-    # Pass structured data cleanly
     HumanMessagePromptTemplate.from_template("Current User Profile:\n{user_data}"),
     HumanMessagePromptTemplate.from_template("Current Allocations:\n{allocations}"),
-    HumanMessagePromptTemplate.from_template("Reference Data:\n{data}"),
-
-    # Agent scratchpad for tool calls
-    #MessagesPlaceholder(variable_name="agent_scratchpad")
+    HumanMessagePromptTemplate.from_template("🔎 Retrieved Context (if any):\n{retrieved_context}"),
 ])
 
-
+# Create the chain with direct tool binding
+llm_with_tools =  ChatOpenAI(
+    temperature=0.1, 
+    model="gpt-4.1-nano", 
+    tools=tools
+)
 simple_chain = simple_prompt | llm_with_tools

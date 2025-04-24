@@ -4,20 +4,63 @@ import json
 import re
 import os
 from copy import deepcopy
+from langchain_pinecone import PineconeVectorStore
 from dotenv import load_dotenv
 load_dotenv()
+from langchain_openai import OpenAIEmbeddings
+from pydantic import BaseModel
+from typing import Any, Optional
 
-@tool
-def json_to_table(json_data):
+api_key = os.getenv('PINCEONE_API_KEY')
+
+class JsonToTableInput(BaseModel):
+    json_data: Any
+
+class RagToolInput(BaseModel):
+    query: str
+
+# Define the tools with proper validation
+def json_to_table(input_data: JsonToTableInput):
     """Convert JSON data to a markdown table. Use when user asks to visualise or tabulate structured data."""
+    json_data = input_data.json_data
     
     if isinstance(json_data, str):
-        json_data = json.loads(json_data)
+        try:
+            json_data = json.loads(json_data)
+        except:
+            # If json_data has parsing issues, try to work with it directly
+            pass
     
+    # Handle a common case in the prompt where 'allocations' might be a nested key
+    if isinstance(json_data, dict) and 'allocations' in json_data:
+        json_data = json_data['allocations']
+    
+    # Ensure we have a valid list or dict to convert to DataFrame
+    if not json_data:
+        json_data = [{"Note": "No allocation data available"}]
     
     df = pd.json_normalize(json_data)
-    print(f"json_to_table output: {df.to_markdown()}")  # Debugging line
-    return df.to_markdown()
+    markdown_table = df.to_markdown(index=False)
+    print(f"[DEBUG] json_to_table output:\n{markdown_table}")
+    
+    return markdown_table
+
+def rag_tool(input_data: RagToolInput):
+    """Lets the agent use RAG system as a tool"""
+    query = input_data.query
+    
+    embedding_model = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        dimensions=384  
+    )
+    kb = PineconeVectorStore(
+        pinecone_api_key=os.environ.get('PINCEONE_API_KEY'),
+        index_name='rag-rubic',
+        namespace='vectors_lightmodel'
+    )
+    retriever = kb.as_retriever(search_kwargs={"k": 10})
+    context = retriever.invoke(query)
+    return "\n".join([doc.page_content for doc in context])
 
 @tool
 def goal_feasibility(goal_amount: float, timeline: float, current_savings: float, income : float) -> dict:
@@ -77,3 +120,4 @@ def save_data(new_user_data:dict, new_alloc_data:dict):
 
     with open(os.path.join(save_path, "updated_allocations.json"), "w") as f:
         json.dump(new_alloc_data, f, indent=2)
+

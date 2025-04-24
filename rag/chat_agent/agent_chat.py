@@ -1,6 +1,7 @@
-from rag.RAG.tools import json_to_table, goal_feasibility
+from rag.RAG.tools import json_to_table, goal_feasibility,rag_tool
 from rag.RAG.chains import template, simple_prompt, simple_chain
 from langchain.tools import tool 
+import json
 from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, Tool, create_react_agent, AgentType
 from langchain.memory import ChatMessageHistory, ConversationBufferMemory
@@ -12,7 +13,10 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from dotenv import load_dotenv
 load_dotenv()
 
-tools = [json_to_table]
+tools = [
+    Tool(name="DisplayJSON", func=json_to_table, description="Displays JSON as table"),
+    Tool(name="RAGSearch", func=rag_tool, description="Retrieves documents related to the query")
+]
 
 llm = llm = ChatOpenAI(
     model='gpt-4.1-nano',
@@ -20,15 +24,27 @@ llm = llm = ChatOpenAI(
     temperature=0.2,
 )
 
-memory = ChatMessageHistory(session_id="test-session")
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-agent = initialize_agent(llm = llm,tools = tools, prompt=simple_prompt)
-
-agent_executor = AgentExecutor(agent=agent, tools=tools)
-
-agent_with_chat_history = RunnableWithMessageHistory(
-    agent_executor,
-    lambda session_id: memory,  # Associates memory with session_id
-    input_messages_key="query",
-    history_messages_key="chat_history",
+agent = initialize_agent(
+    tools=tools,
+    llm=llm,
+    agent="chat-conversational-react-description",
+    memory=memory,
+    verbose=True,
+    agent_kwargs={"prompt": simple_prompt}
 )
+
+
+with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
+    data = json.load(f)
+with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
+    allocs = json.load(f)
+inputs = {
+    "query":"Display my investments.",
+    "user_data":data,
+    "allocations":allocs,
+   
+    "chat_history": [],
+    
+}
