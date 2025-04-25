@@ -133,7 +133,11 @@ def load_chat_history(db_path):
     return history
 
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Go one level up to reach RAG_rubik/
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+print(PROJECT_ROOT)
 # --- Layout: Chat UI Left | Progress Bars Right ---
 col_chat, col_progress = st.columns([3, 1])
 
@@ -142,10 +146,33 @@ with col_chat:
     st.title("💬 RAG Assistant")
 
     with st.expander("📂 Upload Required JSON Files", expanded=True):
-        user_data_file = st.file_uploader("Upload user_data.json", type="json", key="user_data")
-        allocations_file = st.file_uploader("Upload allocations.json", type="json", key="allocations")
-        if user_data_file:
-            user_data = json.load(user_data_file)
+        # user_data_file = st.file_uploader("Upload user_data.json", type="json", key="user_data")
+        # allocations_file = st.file_uploader("Upload allocations.json", type="json", key="allocations")
+        
+        user_data_path = os.path.join(PROJECT_ROOT, 'sample_data', 'sample_user_data.json')
+        allocations_path = os.path.join(PROJECT_ROOT, 'sample_data', 'sample_alloc.json')
+
+        try:
+            with open(user_data_path, 'r') as f:
+                user_data = json.load(f)
+        except FileNotFoundError:
+            st.error(f"Error: user_data.json not found at {user_data_path}")
+            user_data = None
+        except json.JSONDecodeError:
+            st.error(f"Error: Could not decode user_data.json. Please ensure it is valid JSON.")
+            user_data = None
+
+        try:
+            with open(allocations_path, 'r') as f:
+                allocations = json.load(f)
+        except FileNotFoundError:
+            st.error(f"Error: allocations.json not found at {allocations_path}")
+            allocations = None
+        except json.JSONDecodeError:
+            st.error(f"Error: Could not decode allocations.json. Please ensure it is valid JSON.")
+            allocations = None
+
+        if user_data:
             sematic = user_data.get("sematic", {})
             demographic = sematic.get("demographic", {})
             financial = sematic.get("financial", {})
@@ -182,9 +209,9 @@ with col_chat:
 
        
 
-        if allocations_file:
+        if allocations:
             try:
-                allocations = json.load(StringIO(allocations_file.getvalue().decode("utf-8")))
+                # allocations = json.load(StringIO(allocations_file.getvalue().decode("utf-8")))
                 st.markdown("### 💼 Investment Allocations")
 
                 # Flatten data for display
@@ -258,15 +285,15 @@ with col_chat:
 
 # This part runs after the rerun if we're processing
 if st.session_state.processing:
-    if not user_data_file or not allocations_file:
+    if not user_data or not allocations:
         st.session_state.chat_history.append(("assistant", "⚠️ Please upload both JSON files before asking questions."))
         st.session_state.processing = False
         st.rerun()
     else:
         try:
             # Load JSONs
-            user_data = json.load(StringIO(user_data_file.getvalue().decode("utf-8")))
-            allocations = json.load(StringIO(allocations_file.getvalue().decode("utf-8")))
+            # user_data = json.load(StringIO(user_data_file.getvalue().decode("utf-8")))
+            # allocations = json.load(StringIO(allocations_file.getvalue().decode("utf-8")))
             
             # Combined JSON data (for token calculation)
             combined_json_data = {"user_data": user_data, "allocations": allocations}

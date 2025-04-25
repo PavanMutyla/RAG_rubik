@@ -114,7 +114,7 @@ with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/samp
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
     allocs = json.load(f)
 inputs = {
-    "query":"display my investments in a table.",
+    "query":"display my investments.",
     "user_data":data,
     "allocations":allocs,
     "data":"",
