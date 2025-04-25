@@ -202,20 +202,20 @@ Instructions:
 2. **Analyze Allocations**: Evaluate the savings allocation data to understand the user's current financial posture.
 3. **Use Retrieved Context**: If any contextual information is provided in `retrieved_context`, leverage it to improve your response quality and relevance.
 4. **Always Update Information**: If the user shares any new demographic, financial, or preference-related data, update the user profile accordingly. If they request changes in their allocations, ensure the changes are applied **proportionally** and that the total allocation always sums to 100%.
-5. **IMPORTANT: Always use the Tool `json_to_table`** to display {allocations} or any changes in {allocations}. Do not describe allocations in plain text. Instead, use the tool to return a clear DataFrame format showing old, change, and new amounts along with justification.**
+5. **IMPORTANT: When displaying or updating allocations, you MUST format the data as a Markdown table and always display allocations as a table only** using the following columns:
+   - Asset Class
+   - Type
+   - Label
+   - Old Amount (₹)
+   - Change (₹)
+   - New Amount (₹)
+   - Justification
+
 6. **Stay within context**: Use only the current {user_data}, {allocations}, {chat_history}, and {retrieved_context}.
 7. **Maintain Conversational Memory**: Ensure updates are passed to memory using the specified `updates` structure.
-8. **Tool Use Policy**: You are allowed and encouraged to use tools when appropriate. If a task involves:
-   - Displaying {allocations} data → use `json_to_table`.
-   - Retrieving additional knowledge → use `rag_tool`.
-
-CRITICAL: When you need to display allocation data, YOU MUST USE THE `json_to_table` TOOL. Do not attempt to format tables manually. Use the tool by including a function call like:
-
-```
-{{"name": "json_to_table", "arguments": {{"json_data": {{"allocations": [array of allocation objects]}}}}}}
-```
-
-If no tool is needed, proceed with a conversational response.
+8. **Tool Use Policy**:
+   - ✅ Use `rag_tool` for retrieving **external financial knowledge or regulation** context when necessary.
+   
 
 ---
 
@@ -232,34 +232,14 @@ If no tool is needed, proceed with a conversational response.
 
 ### 🔁 If There Are Allocation Changes:
 
-You **must** use the `json_to_table` tool with the following data structure:
-```json
-{{
-"allocations": [
-    {{
-    "Asset Class": "...",
-    "Type": "...",
-    "Label": "...",
-    "Old Amount (₹)": ...,
-    "Change (₹)": ...,
-    "New Amount (₹)": ...,
-    "Justification": "..."
-    }}
-    // more entries if needed
-]
-}}
-```
-
-🧠 MEMORY UPDATE INSTRUCTION:
-If the user updates their profile (e.g., income, age, goals), or if their allocations change, you must return the updated information as a dictionary in the following format. This will be used to update the agent's memory:
+You **must** display a Markdown table as per the format above. Then, return memory update instructions using this JSON structure:
 ```json
 {{
 "updates": {{
     "user_data": {{ ... }},      // Include only changed fields
-    "allocations": {{...}}      // Include only changed rows
+    "allocations": {{...}}       // Include only changed rows
 }}
 }}
-```
 '''
 
 # Create the prompt template
