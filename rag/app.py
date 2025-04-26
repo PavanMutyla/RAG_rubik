@@ -55,7 +55,7 @@ def load_pdf(path):
     except Exception as e:
         raise RuntimeError(f"Error loading PDF: {e}")
 pdf_filename = os.getenv('PDF_PATH')
-pdf_path = os.path.join('../sample_data', pdf_filename)
+pdf_path = os.path.join('sample_data/', pdf_filename)
 docs = load_pdf(path = pdf_path)
 
 # Page configuration
@@ -137,7 +137,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Go one level up to reach RAG_rubik/
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
-print(PROJECT_ROOT)
+print(PROJECT_ROOT, BASE_DIR)
 # --- Layout: Chat UI Left | Progress Bars Right ---
 col_chat, col_progress = st.columns([3, 1])
 
@@ -149,8 +149,8 @@ with col_chat:
         # user_data_file = st.file_uploader("Upload user_data.json", type="json", key="user_data")
         # allocations_file = st.file_uploader("Upload allocations.json", type="json", key="allocations")
         
-        user_data_path = os.path.join(PROJECT_ROOT, 'sample_data', 'sample_user_data.json')
-        allocations_path = os.path.join(PROJECT_ROOT, 'sample_data', 'sample_alloc.json')
+        user_data_path = os.path.join('sample_data/', os.getenv('USER_DATA_PATH'))
+        allocations_path = os.path.join('sample_data/', os.getenv('ALLOCATIONS_PATH'))
 
         try:
             with open(user_data_path, 'r') as f:
@@ -209,14 +209,17 @@ with col_chat:
 
        
 
-        if allocations:
+        if "allocations" not in st.session_state:
+            st.session_state.allocations = allocations
+
+        if st.session_state.allocations:
             try:
                 # allocations = json.load(StringIO(allocations_file.getvalue().decode("utf-8")))
                 st.markdown("### 💼 Investment Allocations")
 
                 # Flatten data for display
                 records = []
-                for asset_class, entries in allocations.items():
+                for asset_class, entries in st.session_state.allocations.items():
                     for item in entries:
                         records.append({
                             "Asset Class": asset_class.replace("_", " ").title(),
@@ -332,9 +335,14 @@ if st.session_state.processing:
 
                 
                 
-                response = app.invoke(inputs, config = config).get('output')
+                output = app.invoke(inputs, config = config)
+                response = output.get('output')
                 print(response)
                 
+
+                # Check if the response contains allocation updates
+                if "allocations" in output:
+                    st.session_state.allocations = output["allocations"]
 
                 # Count tokens for the response
                 response_gpt_tokens = count_tokens_gpt(response)
