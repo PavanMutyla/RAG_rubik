@@ -4,12 +4,14 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.output_parsers import PydanticOutputParser
 import os
 from rag.RAG.tools import json_to_table, goal_feasibility, save_data, rag_tool
 from langchain.agents import initialize_agent, Tool
 from langchain.agents import AgentType
 from langgraph.prebuilt import create_react_agent
 from langchain.tools import Tool
+from RAG.entities import Response, TextResponseSection, AllocationDelta, Citations
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -219,14 +221,7 @@ Instructions:
 
 ---
 
-### 🎯 Response Style Guide:
 
-- 📝 Keep it under 300 words.
-- 😊 Friendly tone: be warm and helpful.
-- 📚 Structured: use bullet points, short paragraphs, and headers.
-- 👀 Visually clear: break sections clearly.
-- 🌟 Use emojis to guide attention and convey tone.
-- 🎯 Be direct and focused on the user's request.
 
 ---
 
@@ -253,9 +248,7 @@ simple_prompt = ChatPromptTemplate.from_messages([
 ])
 
 # Create the chain with direct tool binding
-llm_with_tools =  ChatOpenAI(
-    temperature=0.1, 
-    model="gpt-4.1-nano", 
-    tools=tools
-)
-simple_chain = simple_prompt | llm_with_tools
+
+llm_stu = llm.with_structured_output(Response, strict = True)
+parser = PydanticOutputParser(pydantic_object=Response)
+simple_chain = simple_prompt | llm_stu  

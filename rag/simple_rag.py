@@ -1,6 +1,6 @@
 from langgraph.graph import START, END, StateGraph
 from langchain_openai import OpenAIEmbeddings
-from RAG.chains import simple_chain, llm_with_tools
+from RAG.chains import simple_chain
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMessage
 from typing import TypedDict, Optional, Dict, List, Union, Annotated
 from langchain_core.messages import AnyMessage #human or AI message
@@ -52,7 +52,7 @@ def chat(state):
         "allocations": state["allocations"],
         #"data": state["data"],
         "retrieved_context": "",  # clear after use
-        "output": result.content
+        "output": result
     }
 
 def json_to_table_node(state):
@@ -108,13 +108,13 @@ graph.add_edge("chat", END)
 # Compile
 app = graph.compile(checkpointer=memory)
 
-'''
+
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
     data = json.load(f)
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
     allocs = json.load(f)
 inputs = {
-    "query":"display my investments.",
+    "query":"Show me my allocations.",
     "user_data":data,
     "allocations":allocs,
     "data":"",
@@ -123,6 +123,5 @@ inputs = {
 }
 
 langchain.debug = True
-print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}).get('output'))
+print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))
 #print(json_to_table.args_schema.model_json_schema())
-'''
