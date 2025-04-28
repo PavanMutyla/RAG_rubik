@@ -108,7 +108,7 @@ graph.add_edge("chat", END)
 # Compile
 app = graph.compile(checkpointer=memory)
 
-
+'''
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
     data = json.load(f)
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
@@ -123,5 +123,6 @@ inputs = {
 }
 
 langchain.debug = True
+
 print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))
 #print(json_to_table.args_schema.model_json_schema())
