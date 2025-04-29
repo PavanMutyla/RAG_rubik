@@ -55,7 +55,7 @@ def load_pdf(path):
     except Exception as e:
         raise RuntimeError(f"Error loading PDF: {e}")
 pdf_filename = os.getenv('PDF_PATH')
-pdf_path = os.path.join('sample_data/', pdf_filename)
+pdf_path = os.path.join('../sample_data/', pdf_filename)
 docs = load_pdf(path = pdf_path)
 
 # Page configuration
@@ -149,8 +149,8 @@ with col_chat:
         # user_data_file = st.file_uploader("Upload user_data.json", type="json", key="user_data")
         # allocations_file = st.file_uploader("Upload allocations.json", type="json", key="allocations")
         
-        user_data_path = os.path.join('sample_data/', os.getenv('USER_DATA_PATH'))
-        allocations_path = os.path.join('sample_data/', os.getenv('ALLOCATIONS_PATH'))
+        user_data_path = os.path.join('../sample_data/', os.getenv('USER_DATA_PATH'))
+        allocations_path = os.path.join('../sample_data/', os.getenv('ALLOCATIONS_PATH'))
 
         try:
             with open(user_data_path, 'r') as f:
@@ -181,30 +181,24 @@ with col_chat:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.markdown("### 🧾 **Demographic Info**")
-                st.markdown(f"""
-                - **Age**: {demographic.get("age")}
-                - **Employment Type**: {demographic.get("employment_type").capitalize()}
-                - **Dependents**: {demographic.get("dependents")}
-                - **Health Status**: {demographic.get("health_status").capitalize()}
-                - **Location**: {demographic.get("location").replace("_", " ").title()}
-                """)
+                            st.markdown("### 🧾 **Demographic Info**")
+                            for key, value in demographic.items():
+                                st.markdown(f"- **{key.replace('_', ' ').title()}**: {value}")
 
             with col2:
-                st.markdown("### 📊 **Financial Status**")
-                st.markdown(f"""
-                - **Salary**: ₹{financial.get("salary"):,}/month
-                - **Savings & Investments**: ₹{financial.get("current_savings_and_investments"):,}
-                - **Debts**: ₹{financial.get("debts"):,}
-                - **Monthly Expenses**: ₹{financial.get("monthly_expenses"):,}
-                - **Housing Loan**: {"Yes" if financial.get("is_housing_loan") else "No"}
-                """)
+                            st.markdown("### 📊 **Financial Status**")
+                            for key, value in financial.items():
+                                st.markdown(f"- **{key.replace('_', ' ').title()}**: {value}")
 
             with col3:
-                st.markdown("### ⚙️ **Preferences**")
-                st.markdown("**User Preferences:**")
-                for pref in episodic:
-                    st.markdown(f"- {pref.capitalize()}")
+                            st.markdown("### ⚙️ **Preferences & Goals**")
+                            st.markdown("**User Preferences:**")
+                            for pref in user_data.get("episodic", {}).get("prefrences", []):
+                                st.markdown(f"- {pref.capitalize()}")
+                            st.markdown("**Goals:**")
+                            for goal in user_data.get("episodic", {}).get("goals", []):
+                                for k, v in goal.items():
+                                    st.markdown(f"- **{k.replace('_', ' ').title()}**: {v}")
 
 
        
