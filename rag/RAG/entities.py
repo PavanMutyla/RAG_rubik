@@ -37,5 +37,5 @@ class Citations(BaseModel):
 
 class Response(BaseModel):
     text_response: TextResponseSection = Field(..., description="Structured text response broken into 4 sections")
-    allocation_delta: Optional[AllocationDelta] = Field(None, description="Returns updated allocation if any")
-    citations: List[Citations] = Field(default_factory=list, description="List of citations supporting the response")
+    allocation_delta: List[AllocationDelta] = Field(..., description="Returns updated allocation if any")
+    citations: List[Citations] = Field(..., description="List of citations supporting the response")

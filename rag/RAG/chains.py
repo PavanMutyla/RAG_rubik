@@ -20,7 +20,9 @@ gemini = ChatGoogleGenerativeAI(model = 'gemini-2.0-flash')
 llm = ChatOpenAI(
     model='gpt-4.1-nano',
     api_key=os.environ.get('OPEN_AI_KEY'),
-    temperature=0.2
+    temperature=0.2,
+    #model_kwargs = [rag_tool, json_to_table]
+    
 )
 
 # Schema for grading documents
@@ -140,54 +142,7 @@ name: str
     assets: List[AssetAllocation]
 """
 #--------------------------------------------------------------------------------------
-tools = [
-  {
-    "type": "function",
-    "function": {
-      "name": "json_to_table",
-      "description": "Convert JSON data to a markdown table. Use when user asks to visualise or tabulate structured data.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "arguments": {
-            "type": "object",
-            "properties": {
-              "json_data": {
-                "type": "object",
-                "description": "The JSON data to convert to a table"
-              }
-            },
-            "required": ["json_data"]
-          }
-        },
-        "required": ["arguments"]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "rag_tool",
-      "description": "Lets the agent use RAG system as a tool",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "arguments": {
-            "type": "object",
-            "properties": {
-              "query": {
-                "type": "string",
-                "description": "The query to search for in the RAG system"
-              }
-            },
-            "required": ["query"]
-          }
-        },
-        "required": ["arguments"]
-      }
-    }
-  }
-]
+
 
 
 template = '''You are a SEBI-Registered Investment Advisor (RIA) specializing in Indian financial markets and client relationship management.
@@ -245,10 +200,16 @@ simple_prompt = ChatPromptTemplate.from_messages([
     HumanMessagePromptTemplate.from_template("Current User Profile:\n{user_data}"),
     HumanMessagePromptTemplate.from_template("Current Allocations:\n{allocations}"),
     HumanMessagePromptTemplate.from_template("🔎 Retrieved Context (if any):\n{retrieved_context}"),
+    #MessagesPlaceholder(variable_name='agent_scratchpad')
 ])
 
 # Create the chain with direct tool binding
+table_tool = Tool(name = "table", func = json_to_table, description="takes in a dict of changed allocations and returns a dataframe.")
+rag = Tool(name = 'rag', func=rag_tool, description="RAG with external knowledge.")
 
 llm_stu = llm.with_structured_output(Response, strict = True)
+llm_tools = llm.bind_tools(tools = [table_tool, rag])
+llm_both = llm_tools.with_structured_output(Response, strict = True)
 parser = PydanticOutputParser(pydantic_object=Response)
-simple_chain = simple_prompt | llm_stu  
+
+simple_chain = simple_prompt | llm

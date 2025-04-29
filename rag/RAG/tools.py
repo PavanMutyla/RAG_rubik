@@ -13,16 +13,11 @@ from typing import Any, Optional
 
 api_key = os.getenv('PINCEONE_API_KEY')
 
-class JsonToTableInput(BaseModel):
-    json_data: Any
-
-class RagToolInput(BaseModel):
-    query: str
 
 # Define the tools with proper validation
-def json_to_table(input_data: JsonToTableInput):
+def json_to_table(input_data: dict):
     """Convert JSON data to a markdown table. Use when user asks to visualise or tabulate structured data."""
-    json_data = input_data.json_data
+    json_data = input_data
     
     if isinstance(json_data, str):
         try:
@@ -45,9 +40,9 @@ def json_to_table(input_data: JsonToTableInput):
     
     return markdown_table
 
-def rag_tool(input_data: RagToolInput):
+def rag_tool(input_data: str):
     """Lets the agent use RAG system as a tool"""
-    query = input_data.query
+    query = input_data
     
     embedding_model = OpenAIEmbeddings(
         model="text-embedding-3-small",
@@ -56,7 +51,8 @@ def rag_tool(input_data: RagToolInput):
     kb = PineconeVectorStore(
         pinecone_api_key=os.environ.get('PINCEONE_API_KEY'),
         index_name='rag-rubic',
-        namespace='vectors_lightmodel'
+        namespace='vectors_lightmodel',
+        embedding=embedding_model
     )
     retriever = kb.as_retriever(search_kwargs={"k": 10})
     context = retriever.invoke(query)

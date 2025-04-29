@@ -55,7 +55,7 @@ def load_pdf(path):
     except Exception as e:
         raise RuntimeError(f"Error loading PDF: {e}")
 pdf_filename = os.getenv('PDF_PATH')
-pdf_path = os.path.join('sample_data/', pdf_filename)
+pdf_path = os.path.join('../sample_data/', pdf_filename)
 docs = load_pdf(path = pdf_path)
 
 # Page configuration
@@ -149,8 +149,8 @@ with col_chat:
         # user_data_file = st.file_uploader("Upload user_data.json", type="json", key="user_data")
         # allocations_file = st.file_uploader("Upload allocations.json", type="json", key="allocations")
         
-        user_data_path = os.path.join('sample_data/', os.getenv('USER_DATA_PATH'))
-        allocations_path = os.path.join('sample_data/', os.getenv('ALLOCATIONS_PATH'))
+        user_data_path = os.path.join('../sample_data/', os.getenv('USER_DATA_PATH'))
+        allocations_path = os.path.join('../sample_data/', os.getenv('ALLOCATIONS_PATH'))
 
         try:
             with open(user_data_path, 'r') as f:

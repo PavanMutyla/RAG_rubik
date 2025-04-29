@@ -2,7 +2,7 @@ from langgraph.graph import START, END, StateGraph
 from langchain_openai import OpenAIEmbeddings
 from RAG.chains import simple_chain
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMessage
-from typing import TypedDict, Optional, Dict, List, Union, Annotated
+from typing import TypedDict, Optional, Dict, List, Union, Annotated, Any
 from langchain_core.messages import AnyMessage #human or AI message
 from langgraph.graph.message import add_messages # reducer in langgraph 
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -10,6 +10,7 @@ from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
 from langgraph.checkpoint.memory import MemorySaver
 import json
+from langchain.tools.base import StructuredTool
 import langchain
 from RAG.tools import json_to_table, goal_feasibility, rag_tool, save_data
 import re
@@ -20,95 +21,103 @@ load_dotenv()
 memory = MemorySaver()
 config = {"thread_id":"sample"}
 tools = [json_to_table, rag_tool]
+table_tool = Tool(name = "table", func = json_to_table, description="takes in a dict of changed allocations and returns a dataframe.")
+table_tool = StructuredTool.from_function(json_to_table)
+rag = Tool(name = 'rag', func=rag_tool, description="RAG with external knowledge.")
 #tool_executor = ToolExecutor([json_to_table, goal_feasibility])
-json_to_table_node = ToolNode([json_to_table])
+json_to_table_node = ToolNode([table_tool])
 
-rag_tool_node = ToolNode([rag_tool])
+rag_tool_node = ToolNode([rag])
 class Graph(TypedDict):
-    query: Annotated[list[AnyMessage], add_messages]
-    #chat_history : List[BaseMessage]
-    user_data : Dict
-    allocations : Dict 
-    #data : str 
-    output : Dict
+    query: Annotated[list[Any], add_messages]
+    user_data: Dict
+    allocations: Dict
+    output: Dict
     retrieved_context: str
 
-def chat(state):
+# --- NODES ---
+def call_model(state: Graph):
     inputs = {
         "query": state["query"],
         "user_data": state["user_data"],
         "allocations": state["allocations"],
-        #"data": state["data"],
-        "chat_history": state["query"],  # If you treat `query` as history
+        "chat_history": state["query"],
         "retrieved_context": state.get("retrieved_context", "")
     }
-
     result = simple_chain.invoke(inputs)
-    #print(result)
-
     return {
         "query": state["query"],
         "user_data": state["user_data"],
         "allocations": state["allocations"],
-        #"data": state["data"],
         "retrieved_context": "",  # clear after use
-        "output": result
+        "output": result.content
     }
 
-def json_to_table_node(state):
-    tool_output = json_to_table(state["allocations"])  # Or whatever your input is
-    return AIMessage(content=tool_output)
-
-def tools_condition(state):
-    last_message = state["query"][-1]  # Last user or AI message
-    if isinstance(last_message, AIMessage):
-        tool_calls = getattr(last_message, "tool_calls", None)
+def tools_node(state: Graph):
+    last_message = state["query"][-1]  # last AI/user message
+    tool_calls = getattr(last_message, "tool_calls", None)
+    
+    if tool_calls:
+        tool_name = tool_calls[0].get('name', '')
         
-        # Check if tool calls exist and handle them
-        if tool_calls:
-            tool_name = tool_calls[0].get('name', '')  # Safely access the tool name
-            
-            if tool_name == "json_to_table":
-                return "show_allocation_table"
-            
-            elif tool_name == "rag_tool":
-                return "query_rag"
-            else:
-                return "tools"  # Fallback in case of unknown tool names
-    return "END"  # End the flow if no tool calls are found
+        if tool_name == "json_to_table":
+            print('tool---------------------------------------------------------------------------------------')
+            tool_output = json_to_table(state["allocations"])
+            new_message = AIMessage(content=tool_output)
+        
+        elif tool_name == "rag_tool":
+            print('tool---------------------------------------------------------------------------------------')
+            tool_output = rag_tool(state['query'])
+            new_message = AIMessage(content=tool_output)
+        
+        else:
+            print('unk---------------------------------------------------------------------------------------')
+            # Unknown tool fallback
+            new_message = AIMessage(content="Unknown tool called.")
+        
+        return {
+            **state,
+            "query": state["query"] + [new_message]
+        }
+    
+    return state
 
+# --- CONDITIONAL FLOW ---
+def should_continue(state: Graph):
+    last_message = state["query"][-1]
+    if getattr(last_message, "tool_calls", None):
+        return "tools"
+    return END
 
-# ---- GRAPH SETUP ----
-graph = StateGraph(Graph)
+# --- WORKFLOW SETUP ---
+workflow = StateGraph(Graph)
 
-# Nodes
-graph.add_node("chat", chat)
-graph.add_node("show_allocation_table", json_to_table_node)
-#graph.add_node("save_data_info", save_data_node)
-graph.add_node("query_rag", rag_tool_node)
-graph.add_node("tool_output_to_message", lambda state: AIMessage(content=state["tool_output"]))
+workflow.add_node("agent", call_model)
+workflow.add_node("tools", tools_node)
 
+workflow.add_edge(START, "agent")
+workflow.add_conditional_edges("agent", should_continue, ["tools", END])
+workflow.add_edge("tools", "agent")
 
-#graph.add_node("tools", ToolNode(tools))  # fallback for other tools
-
-
-# Main flow
-graph.add_edge(START, "chat")
-graph.add_conditional_edges("chat", tools_condition)
-
-# Each tool goes back to chat
-graph.add_edge("show_allocation_table", "chat")
-#graph.add_edge("save_data_info", "chat")
-graph.add_edge("query_rag", "chat")
-
-# End after a loop
-graph.add_edge("chat", END)
-
-
-# Compile
-app = graph.compile(checkpointer=memory)
-
+# --- COMPILE ---
+app = workflow.compile(checkpointer=memory)
 '''
+
+from IPython.display import Image, display
+try:
+    image_data = app.get_graph().draw_mermaid_png()
+    # Save the image
+    with open("graph.png", "wb") as f:
+        f.write(image_data)
+
+    # Optionally, still display it
+    display(Image(image_data))
+except Exception as e:
+    print(f"An error occurred: {e}")
+    pass
+'''
+
+
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
     data = json.load(f)
 with open('/home/pavan/Desktop/FOLDERS/RUBIC/RAG_without_profiler/RAG_rubik/sample_data/sample_alloc.json', 'r') as f:
@@ -124,5 +133,7 @@ inputs = {
 
 langchain.debug = True
 
-print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))
+#print(app.invoke(inputs, config={"configurable": {"thread_id": "sample"}}))
 #print(json_to_table.args_schema.model_json_schema())
+#print(table_tool.invoke({"input_data": allocs}))
+#print(rag.invoke("What is tax?"))
