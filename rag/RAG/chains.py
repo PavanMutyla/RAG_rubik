@@ -211,7 +211,7 @@ Instructions:
    - New Amount (₹)
    - Justification
 
-6. **Stay within context**: Use only the current {user_data}, {allocations}, {chat_history}, and {retrieved_context}.
+
 7. **Maintain Conversational Memory**: Ensure updates are passed to memory using the specified `updates` structure.
 8. **Tool Use Policy**:
    - ✅ Use `rag_tool` for retrieving **external financial knowledge or regulation** context when necessary.
