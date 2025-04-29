@@ -1,8 +1,10 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from langchain.tools import tool
 import pandas as pd 
 import json 
 import re
-import os
 from copy import deepcopy
 from langchain_pinecone import PineconeVectorStore
 from dotenv import load_dotenv

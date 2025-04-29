@@ -1,5 +1,7 @@
-import pandas as pd
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pandas as pd
 import langchain
 os.environ['STREAMLIT_SERVER_ENABLE_STATIC_SERVING'] = 'false'
 

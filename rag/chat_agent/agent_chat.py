@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag.RAG.tools import json_to_table, goal_feasibility,rag_tool
 from rag.RAG.chains import template, simple_prompt, simple_chain
 from langchain.tools import tool 

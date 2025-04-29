@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from langgraph.graph import START, END, StateGraph
 from langchain_openai import OpenAIEmbeddings
 from RAG.chains import simple_chain, llm_with_tools

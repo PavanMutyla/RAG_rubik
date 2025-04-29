@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from typing import TypedDict, Annotated
 from langgraph.graph import add_messages, StateGraph, END
 from langchain_openai import ChatOpenAI
